@@ -1,0 +1,15 @@
+/target
+**/*.rs.bk
+Cargo.lock
+*.swp
+*.swo
+*~
+.DS_Store
+.vscode/
+.idea/
+*.exe
+*.dll
+*.dylib
+*.so
+artifacts/
+release/

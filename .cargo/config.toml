@@ -1,0 +1,27 @@
+# Cargo config for cross-platform builds
+[build]
+# Use MSVC toolchain on Windows (default on windows-latest)
+# For cross-compilation from Linux:
+# target.x86_64-pc-windows-gnu.linker = "x86_64-w64-mingw32-gcc"
+
+[profile.release]
+lto = true
+strip = true
+opt-level = "z"
+codegen-units = 1
+panic = "abort"
+
+# Windows-specific
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-C", "link-arg=-Wl,--no-undefined"]
+
+# Linux-specific
+[target.x86_64-unknown-linux-gnu]
+rustflags = ["-C", "link-arg=-Wl,--no-undefined"]
+
+# macOS-specific
+[target.x86_64-apple-darwin]
+rustflags = ["-C", "link-arg=-Wl,-dead_strip"]
+
+[target.aarch64-apple-darwin]
+rustflags = ["-C", "link-arg=-Wl,-dead_strip"]
