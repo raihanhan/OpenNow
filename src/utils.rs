@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use crate::models::{get_icon_cache_dir, Shortcut};
+use crate::models::get_icon_cache_dir;
 
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
@@ -81,7 +81,7 @@ fn launch_windows(target: &str, args: &str) -> Result<()> {
             );
             if (result.0 as isize) <= 32 {
                 return Err(LaunchError::Failed(format!(
-                    "ShellExecute failed with code: {}",
+                    "ShellExecute failed with code: {:?}",
                     result.0
                 )));
             }
@@ -167,6 +167,8 @@ pub fn extract_icon(target: &str) -> Option<PathBuf> {
 
 #[cfg(target_os = "windows")]
 fn extract_icon_windows(target: &str, cache_path: &Path) -> Option<PathBuf> {
+    use std::ffi::OsStr;
+    use std::os::windows::ffi::OsStrExt;
     use windows::Win32::Foundation::*;
     use windows::Win32::Graphics::Gdi::*;
     use windows::Win32::UI::Shell::*;
@@ -174,7 +176,7 @@ fn extract_icon_windows(target: &str, cache_path: &Path) -> Option<PathBuf> {
     use windows::core::*;
 
     unsafe {
-        let target_wide: Vec<u16> = std::ffi::OsStr::new(target)
+        let target_wide: Vec<u16> = OsStr::new(target)
             .encode_wide()
             .chain(Some(0))
             .collect();
@@ -199,14 +201,14 @@ fn extract_icon_windows(target: &str, cache_path: &Path) -> Option<PathBuf> {
         let ico_y = GetSystemMetrics(SM_CYICON);
 
         let hdc_screen = GetDC(None);
-        let hdc_mem = CreateCompatibleDC(HDC(hdc_screen));
-        let hbitmap = CreateCompatibleBitmap(HDC(hdc_screen), ico_x, ico_y);
-        let _old_bitmap = SelectObject(HDC(hdc_mem), HGDIOBJ(hbitmap));
+        let hdc_mem = CreateCompatibleDC(Some(hdc_screen));
+        let hbitmap = CreateCompatibleBitmap(hdc_screen, ico_x, ico_y);
+        let _old_bitmap = SelectObject(hdc_mem, HGDIOBJ(hbitmap.0));
 
-        DrawIcon(HDC(hdc_mem), 0, 0, hicon);
+        DrawIcon(hdc_mem, 0, 0, hicon);
 
         let mut bmp_info = BITMAP::default();
-        GetObjectW(HGDIOBJ(hbitmap), std::mem::size_of::<BITMAP>() as i32, Some(&mut bmp_info as *mut _ as *mut _));
+        GetObjectW(HGDIOBJ(hbitmap.0), std::mem::size_of::<BITMAP>() as i32, Some(&mut bmp_info as *mut _ as *mut _));
 
         let width = bmp_info.bmWidth as u32;
         let height = bmp_info.bmHeight as u32;
@@ -227,8 +229,8 @@ fn extract_icon_windows(target: &str, cache_path: &Path) -> Option<PathBuf> {
         };
 
         GetDIBits(
-            HDC(hdc_mem),
-            HBITMAP(hbitmap),
+            hdc_mem,
+            hbitmap,
             0,
             height,
             Some(bits.as_mut_ptr() as *mut _),
@@ -245,10 +247,10 @@ fn extract_icon_windows(target: &str, cache_path: &Path) -> Option<PathBuf> {
         img.save(cache_path).ok()?;
 
         // Cleanup
-        SelectObject(HDC(hdc_mem), HGDIOBJ(_old_bitmap));
-        DeleteObject(HGDIOBJ(hbitmap));
-        DeleteDC(HDC(hdc_mem));
-        ReleaseDC(None, HDC(hdc_screen));
+        SelectObject(hdc_mem, _old_bitmap);
+        DeleteObject(HGDIOBJ(hbitmap.0));
+        DeleteDC(hdc_mem);
+        ReleaseDC(None, hdc_screen);
         DestroyIcon(hicon);
 
         Some(cache_path.to_path_buf())
